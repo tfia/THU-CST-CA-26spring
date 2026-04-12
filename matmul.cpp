@@ -37,12 +37,8 @@ int main() {
     //======================================================
     int (*bt)[MATRIX_SIZE] = new int[MATRIX_SIZE][MATRIX_SIZE];
 
-    #ifndef BLOCK_I
     #define BLOCK_I 16
-    #endif
-    #ifndef BLOCK_J
     #define BLOCK_J 16
-    #endif
 
     for (i = 0; i < MATRIX_SIZE; i ++)
         for (j = 0; j < MATRIX_SIZE; j ++)
