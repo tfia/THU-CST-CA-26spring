@@ -1,0 +1,16 @@
+Size: 1 KB, Latency: 1.17565 ns/access, Stride: 128 B
+Size: 16 KB, Latency: 1.20148 ns/access, Stride: 128 B
+Size: 32 KB, Latency: 1.18422 ns/access, Stride: 128 B
+Size: 48 KB, Latency: 1.19311 ns/access, Stride: 128 B
+Size: 64 KB, Latency: 3.14934 ns/access, Stride: 128 B
+Size: 80 KB, Latency: 3.15444 ns/access, Stride: 128 B
+Size: 96 KB, Latency: 3.14724 ns/access, Stride: 128 B
+Size: 112 KB, Latency: 3.17606 ns/access, Stride: 128 B
+Size: 128 KB, Latency: 3.14486 ns/access, Stride: 128 B
+Size: 256 KB, Latency: 3.22298 ns/access, Stride: 128 B
+Size: 512 KB, Latency: 4.33797 ns/access, Stride: 128 B
+Size: 1024 KB, Latency: 7.61479 ns/access, Stride: 128 B
+Size: 2048 KB, Latency: 12.7614 ns/access, Stride: 128 B
+Size: 4096 KB, Latency: 11.7327 ns/access, Stride: 128 B
+Size: 8192 KB, Latency: 34.8259 ns/access, Stride: 128 B
+Size: 16384 KB, Latency: 126.535 ns/access, Stride: 128 B
