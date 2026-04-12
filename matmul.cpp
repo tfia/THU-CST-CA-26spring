@@ -35,14 +35,30 @@ int main() {
 
     // TODO: Your optimized code:
     //======================================================
-    #define BLOCK_SIZE 64
-    for (int blk = 0; blk < MATRIX_SIZE / BLOCK_SIZE; blk ++) {
-        for (i = 0; i < MATRIX_SIZE; i ++)
-            for (k = blk * BLOCK_SIZE; k < min((blk + 1) * BLOCK_SIZE, MATRIX_SIZE); k ++) {
-                register int r = a[i][k];
-                for (j = 0; j < MATRIX_SIZE; j ++)
-                    d[i][j] += r * b[k][j];
+    int (*bt)[MATRIX_SIZE] = new int[MATRIX_SIZE][MATRIX_SIZE];
+
+    #ifndef BLOCK_I
+    #define BLOCK_I 16
+    #endif
+    #ifndef BLOCK_J
+    #define BLOCK_J 16
+    #endif
+
+    for (i = 0; i < MATRIX_SIZE; i ++)
+        for (j = 0; j < MATRIX_SIZE; j ++)
+            bt[j][i] = b[i][j];
+
+    for (int ii = 0; ii < MATRIX_SIZE; ii += BLOCK_I) {
+        for (i = ii; i < ii + BLOCK_I; i ++) {
+            for (int jj = 0; jj < MATRIX_SIZE; jj += BLOCK_J) {
+                for (j = jj; j < jj + BLOCK_J; j ++) {
+                    register int sum = 0;
+                    for (k = 0; k < MATRIX_SIZE; k ++)
+                        sum += a[i][k] * bt[j][k];
+                    d[i][j] = sum;
+                }
             }
+        }
     }
     // Stop here.
     //======================================================
