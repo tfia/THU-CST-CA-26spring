@@ -16,7 +16,7 @@ const int MIN_SIZE = 1024; // 1KB
 const int LINE_SIZE_PROBE_SIZE = 256 * 1024 * 1024; // 256MB
 const int MAX_STRIDE = 256; // measured in int elements
 const int DEFAULT_STRIDE = 16; // measured in int elements
-const int DEFAULT_ASSOC_CACHE_SIZE_KB = 512; // 1MB
+const int DEFAULT_ASSOC_CACHE_SIZE_KB = 1024; // 1MB
 const long long MIN_ACCESS_COUNT = 1LL << 20;
 const long long LINE_ACCESS_COUNT = 1LL << 24;
 const long long ASSOC_ACCESS_COUNT = 1LL << 24;
@@ -85,31 +85,21 @@ long long measure_line_latency_ns(int* buffer, int size, int stride) {
 }
 
 long long measure_assoc_latency_ns(int* buffer, int size, int block_cnt) {
-    int block_size = size / block_cnt;
-    int block_size_int = block_size / static_cast<int>(sizeof(int));
-    int odd_block_cnt = block_cnt / 2;
-
-    for (int i = 0; i < odd_block_cnt; i++) {
-        int cur_block = i * 2 + 1;
-        int nxt_block = ((i + 1) % odd_block_cnt) * 2 + 1;
-        int cur = cur_block * block_size_int;
-        int nxt = nxt_block * block_size_int;
-        buffer[cur] = nxt;
-    }
-
-    int index = block_size_int;
-    int warmup_cnt = std::max(odd_block_cnt * 1024, 1 << 14);
-    for (int i = 0; i < warmup_cnt; i++) {
-        index = buffer[index];
-    }
+    int elem_cnt = size / static_cast<int>(sizeof(int));
+    int stride = elem_cnt / block_cnt * 2;
+    bool use_mask = (elem_cnt & (elem_cnt - 1)) == 0;
+    int elem_mask = elem_cnt - 1;
+    int sum = 0;
 
     auto start = std::chrono::steady_clock::now();
-    for (long long i = 0; i < ASSOC_ACCESS_COUNT; i++) {
-        index = buffer[index];
+    for (long long i = 0; i < ASSOC_ACCESS_COUNT * stride; i += stride) {
+        int index = use_mask ? (static_cast<int>(i) & elem_mask) : (static_cast<int>(i % elem_cnt));
+        buffer[index] = static_cast<int>(i);
+        sum ^= buffer[index];
     }
     auto end = std::chrono::steady_clock::now();
 
-    global_tmp = index;
+    global_tmp = sum;
     return std::chrono::duration_cast<ns_t>(end - start).count();
 }
 
