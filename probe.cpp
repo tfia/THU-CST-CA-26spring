@@ -6,14 +6,18 @@
 #include <iostream>
 #include <numeric>
 #include <random>
+#include <string>
 #include <vector>
 
 typedef std::chrono::nanoseconds ns_t;
 
 const int MAX_SIZE = 16 * 1024 * 1024; // 16MB
 const int MIN_SIZE = 1024; // 1KB
+const int LINE_SIZE_PROBE_SIZE = 256 * 1024 * 1024; // 256MB
+const int MAX_STRIDE = 256; // measured in int elements
 const int DEFAULT_STRIDE = 16; // measured in int elements
 const long long MIN_ACCESS_COUNT = 1LL << 20;
+const long long LINE_ACCESS_COUNT = 1LL << 24;
 
 // To prevent compiler optimization
 volatile int global_tmp = 0;
@@ -47,6 +51,34 @@ long long measure_latency_ns(int* buffer, int size, int stride, std::mt19937& rn
     auto end = std::chrono::steady_clock::now();
 
     global_tmp = index;
+    return std::chrono::duration_cast<ns_t>(end - start).count();
+}
+
+long long measure_line_latency_ns(int* buffer, int size, int stride) {
+    int slot_cnt = size / (stride * static_cast<int>(sizeof(int)));
+    int index = 0;
+    int sum = 0;
+    int warmup_cnt = std::max(slot_cnt / 16, 1 << 14);
+
+    for (int i = 0; i < warmup_cnt; i++) {
+        sum ^= buffer[index];
+        index += stride;
+        if (index >= slot_cnt * stride) {
+            index = 0;
+        }
+    }
+
+    auto start = std::chrono::steady_clock::now();
+    for (long long i = 0; i < LINE_ACCESS_COUNT; i++) {
+        sum ^= buffer[index];
+        index += stride;
+        if (index >= slot_cnt * stride) {
+            index = 0;
+        }
+    }
+    auto end = std::chrono::steady_clock::now();
+
+    global_tmp = sum;
     return std::chrono::duration_cast<ns_t>(end - start).count();
 }
 
@@ -84,20 +116,48 @@ void probe_cache_size(int stride) {
     free(raw);
 }
 
-int main(int argc, char* argv[]) {
-    int stride = DEFAULT_STRIDE;
-    if (argc >= 2) {
-        stride = std::atoi(argv[1]);
-        assert(stride > 0);
+void probe_cache_line_size() {
+    void* raw = nullptr;
+    assert(posix_memalign(&raw, 64, LINE_SIZE_PROBE_SIZE) == 0);
+    int* buffer = static_cast<int*>(raw);
+    int int_cnt = LINE_SIZE_PROBE_SIZE / static_cast<int>(sizeof(int));
+    std::iota(buffer, buffer + int_cnt, 0);
+
+    for (int stride = 1; stride <= MAX_STRIDE; stride *= 2) {
+        int slot_cnt = LINE_SIZE_PROBE_SIZE / (stride * static_cast<int>(sizeof(int)));
+        if (slot_cnt < 2) {
+            break;
+        }
+
+        long long elapsed_ns = measure_line_latency_ns(buffer, LINE_SIZE_PROBE_SIZE, stride);
+        double ns_per_access = static_cast<double>(elapsed_ns) / LINE_ACCESS_COUNT;
+        std::cout << "Size: " << LINE_SIZE_PROBE_SIZE / 1024 << " KB, Latency: "
+                  << ns_per_access << " ns/access"
+                  << ", Stride: " << stride * sizeof(int) << " B" << std::endl;
     }
 
+    free(raw);
+}
+
+int main(int argc, char* argv[]) {
     // Bind to CPU 0
     cpu_set_t mask;
     CPU_ZERO(&mask);
     CPU_SET(0, &mask);
     assert(sched_setaffinity(0, sizeof(mask), &mask) >= 0);
 
-    probe_cache_size(stride);
+    int stride = DEFAULT_STRIDE;
+    if (argc >= 2) {
+        if (std::string(argv[1]) == "line") {
+            probe_cache_line_size();
+            return 0;
+        }
+        
+        stride = std::atoi(argv[1]);
+        assert(stride > 0);
+
+        probe_cache_size(stride);
+    }
     
     return 0;
 }
