@@ -11,16 +11,15 @@
 
 typedef std::chrono::nanoseconds ns_t;
 
-const int MAX_SIZE = 16 * 1024 * 1024; // 16MB
+const int MAX_SIZE = 64 * 1024 * 1024; // 64MB
 const int MIN_SIZE = 1024; // 1KB
 const int LINE_SIZE_PROBE_SIZE = 256 * 1024 * 1024; // 256MB
 const int MAX_STRIDE = 256; // measured in int elements
 const int DEFAULT_STRIDE = 16; // measured in int elements
-const int DEFAULT_ASSOC_CACHE_SIZE_KB = 48; // 48KB
+const int DEFAULT_ASSOC_CACHE_SIZE_KB = 32; // 32KB
 const long long MIN_ACCESS_COUNT = 1LL << 20;
 const long long LINE_ACCESS_COUNT = 1LL << 24;
 const long long ASSOC_ACCESS_COUNT = 1LL << 24;
-const long long L1D_CACHELINE_COUNT = 48 * 1024 / 64; // 48KB L1D cache, 64B cache line
 
 // To prevent compiler optimization
 volatile int global_tmp = 0;
@@ -85,7 +84,7 @@ long long measure_line_latency_ns(int* buffer, int size, int stride) {
     return std::chrono::duration_cast<ns_t>(end - start).count();
 }
 
-long long measure_assoc_1_latency_ns(int* buffer, int size, int block_cnt, std::mt19937& rng) {
+long long measure_assoc_latency_ns(int* buffer, int size, int block_cnt, std::mt19937& rng) {
     int block_size = size / block_cnt;
     int block_size_int = block_size / static_cast<int>(sizeof(int));
     int odd_block_cnt = block_cnt / 2;
@@ -118,47 +117,6 @@ long long measure_assoc_1_latency_ns(int* buffer, int size, int block_cnt, std::
     return std::chrono::duration_cast<ns_t>(end - start).count();
 }
 
-long long measure_assoc_2_latency_ns(int* buffer, int size, int n, std::mt19937& rng) {
-    int cache_line_size = size / 2 / static_cast<int>(L1D_CACHELINE_COUNT);
-    int elem_cnt = size / static_cast<int>(sizeof(int));
-    int stride_cacheline = static_cast<int>(L1D_CACHELINE_COUNT / n);
-    int stride = stride_cacheline * cache_line_size / static_cast<int>(sizeof(int));
-    int slot_cnt = elem_cnt / std::gcd(elem_cnt, stride);
-    std::vector<int> order(slot_cnt);
-
-    assert(n > 0);
-    assert(stride > 0);
-
-    int index = 0;
-    for (int i = 0; i < slot_cnt; i++) {
-        order[i] = index;
-        index += stride;
-        if (index >= elem_cnt) {
-            index %= elem_cnt;
-        }
-    }
-    std::shuffle(order.begin(), order.end(), rng);
-
-    for (int i = 0; i < slot_cnt; i++) {
-        buffer[order[i]] = order[(i + 1) % slot_cnt];
-    }
-
-    index = order[0];
-    int warmup_cnt = std::max(slot_cnt * 16, 1 << 14);
-    for (int i = 0; i < warmup_cnt; i++) {
-        index = buffer[index];
-    }
-
-    auto start = std::chrono::steady_clock::now();
-    for (long long i = 0; i < ASSOC_ACCESS_COUNT; i++) {
-        index = buffer[index];
-    }
-    auto end = std::chrono::steady_clock::now();
-
-    global_tmp = index;
-    return std::chrono::duration_cast<ns_t>(end - start).count();
-}
-
 void probe_cache_size(int stride) {
     void* raw = nullptr;
     assert(stride > 0);
@@ -168,8 +126,8 @@ void probe_cache_size(int stride) {
 
     int size = MIN_SIZE;
 
-    // for (int size = MIN_SIZE; size <= MAX_SIZE; size *= 2) {
-    while(size <= MAX_SIZE) {
+    for (int size = MIN_SIZE; size <= MAX_SIZE; size *= 2) {
+    // while(size <= MAX_SIZE) {
         int slot_cnt = size / (stride * static_cast<int>(sizeof(int)));
         if (slot_cnt < 2) {
             std::cout << "Size: " << size / 1024 << " KB, skipped" << std::endl;
@@ -183,11 +141,11 @@ void probe_cache_size(int stride) {
                   << ns_per_access << " ns/access"
                   << ", Stride: " << stride * sizeof(int) << " B" << std::endl;
 
-        if (size < 128 * 1024) {
-            size += (((size / 1024) & 1) ? 15 : 16) * 1024;
-        } else {
-            size *= 2;
-        }
+        // if (size < 128 * 1024) {
+        //     size += (((size / 1024) & 1) ? 15 : 16) * 1024;
+        // } else {
+        //     size *= 2;
+        // }
     }
 
     free(raw);
@@ -216,7 +174,7 @@ void probe_cache_line_size() {
     free(raw);
 }
 
-void probe_cache_associativity_1(int cache_size_kb) {
+void probe_cache_associativity(int cache_size_kb) {
     int cache_size = cache_size_kb * 1024;
     int size = cache_size * 2;
     void* raw = nullptr;
@@ -232,36 +190,12 @@ void probe_cache_associativity_1(int cache_size_kb) {
             break;
         }
 
-        long long elapsed_ns = measure_assoc_1_latency_ns(buffer, size, block_cnt, rng);
+        long long elapsed_ns = measure_assoc_latency_ns(buffer, size, block_cnt, rng);
         double ns_per_access = static_cast<double>(elapsed_ns) / ASSOC_ACCESS_COUNT;
         std::cout << "Size: " << size / 1024 << " KB, Latency: "
                   << ns_per_access << " ns/access"
                   << ", Blocks: " << block_cnt
                   << ", Ways: " << (1 << (n - 2)) << std::endl;
-    }
-
-    free(raw);
-}
-
-void probe_cache_associativity_2(int cache_size_kb) {
-    int cache_size = cache_size_kb * 1024;
-    int size = cache_size * 2;
-    void* raw = nullptr;
-    assert(cache_size > 0);
-    assert(posix_memalign(&raw, 64, size) == 0);
-    int* buffer = static_cast<int*>(raw);
-    int int_cnt = size / static_cast<int>(sizeof(int));
-    std::iota(buffer, buffer + int_cnt, 0);
-    std::mt19937 rng(2023012163);
-
-    for (int n = 1; n <= 32 && n <= L1D_CACHELINE_COUNT; n++) {
-        long long elapsed_ns = measure_assoc_2_latency_ns(buffer, size, n, rng);
-        double ns_per_access = static_cast<double>(elapsed_ns) / ASSOC_ACCESS_COUNT;
-        int stride = static_cast<int>(L1D_CACHELINE_COUNT / n) * (size / 2 / static_cast<int>(L1D_CACHELINE_COUNT));
-        std::cout << "Size: " << size / 1024 << " KB, Latency: "
-                  << ns_per_access << " ns/access"
-                  << ", Stride: " << stride << " B"
-                  << ", Ways: " << n << std::endl;
     }
 
     free(raw);
@@ -280,24 +214,14 @@ int main(int argc, char* argv[]) {
             probe_cache_line_size();
             return 0;
         }
-        if (std::string(argv[1]) == "assoc_1") {
+        if (std::string(argv[1]) == "assoc") {
             int cache_size_kb = DEFAULT_ASSOC_CACHE_SIZE_KB;
             if (argc >= 3) {
                 cache_size_kb = std::atoi(argv[2]);
                 assert(cache_size_kb > 0);
             }
 
-            probe_cache_associativity_1(cache_size_kb);
-            return 0;
-        }
-        if (std::string(argv[1]) == "assoc_2" || std::string(argv[1]) == "assoc") {
-            int cache_size_kb = DEFAULT_ASSOC_CACHE_SIZE_KB;
-            if (argc >= 3) {
-                cache_size_kb = std::atoi(argv[2]);
-                assert(cache_size_kb > 0);
-            }
-
-            probe_cache_associativity_2(cache_size_kb);
+            probe_cache_associativity(cache_size_kb);
             return 0;
         }
         

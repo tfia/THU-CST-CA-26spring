@@ -1,0 +1,9 @@
+Size: 64 KB, Latency: 2.54828 ns/access, Blocks: 4, Ways: 1
+Size: 64 KB, Latency: 2.09134 ns/access, Blocks: 8, Ways: 2
+Size: 64 KB, Latency: 2.08725 ns/access, Blocks: 16, Ways: 4
+Size: 64 KB, Latency: 5.00943 ns/access, Blocks: 32, Ways: 8
+Size: 64 KB, Latency: 5.00536 ns/access, Blocks: 64, Ways: 16
+Size: 64 KB, Latency: 5.01239 ns/access, Blocks: 128, Ways: 32
+Size: 64 KB, Latency: 5.01174 ns/access, Blocks: 256, Ways: 64
+Size: 64 KB, Latency: 5.01922 ns/access, Blocks: 512, Ways: 128
+Size: 64 KB, Latency: 5.0122 ns/access, Blocks: 1024, Ways: 256
