@@ -126,8 +126,8 @@ void probe_cache_size(int stride) {
 
     int size = MIN_SIZE;
 
-    for (int size = MIN_SIZE; size <= MAX_SIZE; size *= 2) {
-    // while(size <= MAX_SIZE) {
+    // for (int size = MIN_SIZE; size <= MAX_SIZE; size *= 2) {
+    while(size <= MAX_SIZE) {
         int slot_cnt = size / (stride * static_cast<int>(sizeof(int)));
         if (slot_cnt < 2) {
             std::cout << "Size: " << size / 1024 << " KB, skipped" << std::endl;
@@ -141,11 +141,11 @@ void probe_cache_size(int stride) {
                   << ns_per_access << " ns/access"
                   << ", Stride: " << stride * sizeof(int) << " B" << std::endl;
 
-        // if (size < 128 * 1024) {
-        //     size += (((size / 1024) & 1) ? 15 : 16) * 1024;
-        // } else {
-        //     size *= 2;
-        // }
+        if (size < 128 * 1024) {
+            size += (((size / 1024) & 1) ? 15 : 16) * 1024;
+        } else {
+            size *= 2;
+        }
     }
 
     free(raw);
