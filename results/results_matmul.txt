@@ -1,0 +1,24 @@
+$ ./build/matmul 
+time spent for original method : 6.80344 s
+time spent for new method : 2.05036 s
+time ratio of performance optimization : 3.31817
+
+$ ./build/matmul 
+time spent for original method : 6.84141 s
+time spent for new method : 2.04172 s
+time ratio of performance optimization : 3.35081
+
+$ ./build/matmul 
+time spent for original method : 6.79596 s
+time spent for new method : 2.04165 s
+time ratio of performance optimization : 3.32866
+
+$ ./build/matmul 
+time spent for original method : 6.82071 s
+time spent for new method : 2.04141 s
+time ratio of performance optimization : 3.34117
+
+$ ./build/matmul 
+time spent for original method : 6.78929 s
+time spent for new method : 2.04153 s
+time ratio of performance optimization : 3.3255
